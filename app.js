@@ -5,10 +5,11 @@ const rateLimit = require('express-rate-limit');
 const mongoSanitize = require('express-mongo-sanitize');
 const xss = require('xss-clean');
 const hpp = require('hpp');
-const cors = require('cors');
 const compression = require('compression');
 const cookieParser = require('cookie-parser');
+const cors = require('cors');
 const app = express();
+require('dotenv').config();
 
 //In case of uncaught exceptions
 process.on('uncaughtException', (err) => {
@@ -27,8 +28,6 @@ const globalAppErrorHandler = require('./controllers/errorController');
 
 const port = process.env.PORT || 3000;
 
-require('dotenv').config({ path: './.env' });
-
 app.enable('trust proxy');
 //Pug
 app.set('view engine', 'pug');
@@ -36,7 +35,6 @@ app.set('views', path.join(__dirname, 'views'));
 
 //GLOBAL MIDDLEWARES:
 //Cross origin ...
-app.use(cors());
 
 app.options('*', cors());
 //Serving the static files
@@ -57,6 +55,7 @@ app.use('/api', limiter);
 //Body parser
 app.use(express.json({ limit: '10kb' }));
 app.use(cookieParser());
+app.use(cors({origin: '*'}));
 
 //Data sanitization against NOsql query injection
 app.use(mongoSanitize());
@@ -80,6 +79,11 @@ app.use('/api/v1/users', users);
 app.use('/api/v1/reviews', reviews);
 app.use('/api/v1/bookings', bookings);
 
+app.use((req, res, next) => {
+  res.header('Access-Control-Allow-Origin', '*');
+  next();
+});
+
 app.all('*', (req, res, next) => {
   next(new AppError(`Can't find ${req.originalUrl}`, 404));
 });
@@ -101,4 +105,14 @@ start();
 
 process.on('unhandledRejecion', (err) => {
   console.log(err.name, err.message);
+  server.close(() => {
+    process.exit(1);
+  });
+});
+
+process.on('SIGTERM', () => {
+  console.log('👋 SIGTERM RECEIVED. Shutting down gracefully');
+  server.close(() => {
+    console.log('💥 Process terminated!');
+  });
 });
